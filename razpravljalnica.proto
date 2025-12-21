@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package razpravljalnica;
+
+option go_package = "/razpravljalnica";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+// Basic data types
+////////////////////////////////////////////////////////////////////////////////
+
+message User {
+  int64 id = 1;
+  string name = 2;
+}
+
+message Topic {
+  int64 id = 1;
+  string name = 2;
+}
+
+message Message {
+  int64 id = 1;
+  int64 topic_id = 2;
+  int64 user_id = 3;
+  string text = 4;
+  google.protobuf.Timestamp created_at = 5;
+  int32 likes = 6;
+}
+
+message Like {
+  int64 topic_id = 1;
+  int64 message_id = 2;
+  int64 user_id = 3;
+}
+
+enum OpType {
+  OP_POST = 0;
+  OP_LIKE = 1;
+}
+
+message NodeInfo {
+  string node_id = 1;
+  string address = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Data plane
+////////////////////////////////////////////////////////////////////////////////
+
+service MessageBoard {
+  rpc CreateUser(CreateUserRequest) returns (User);
+  rpc CreateTopic(CreateTopicRequest) returns (Topic);
+  rpc PostMessage(PostMessageRequest) returns (Message);
+  rpc LikeMessage(LikeMessageRequest) returns (Message);
+  rpc GetSubscriptionNode(SubscriptionNodeRequest) returns (SubscriptionNodeResponse);
+  rpc ListTopics(google.protobuf.Empty) returns (ListTopicsResponse);
+  rpc GetMessages(GetMessagesRequest) returns (GetMessagesResponse);
+  rpc SubscribeTopic(SubscribeTopicRequest) returns (stream MessageEvent);
+}
+
+message CreateUserRequest {
+  string name = 1;
+}
+
+message CreateTopicRequest {
+  string name = 1;
+}
+
+message PostMessageRequest {
+  int64 topic_id = 1;
+  int64 user_id = 2;
+  string text = 3;
+}
+
+message LikeMessageRequest {
+  int64 topic_id = 1;
+  int64 message_id = 2;
+  int64 user_id = 3;
+}
+
+message ListTopicsResponse {
+  repeated Topic topics = 1;
+}
+
+message GetMessagesRequest {
+  int64 topic_id = 1;
+  int64 from_message_id = 2;
+  int32 limit = 3;
+}
+
+message GetMessagesResponse {
+  repeated Message messages = 1;
+}
+
+message SubscribeTopicRequest {
+  repeated int64 topic_id = 1;
+  int64 user_id = 2;
+  int64 from_message_id = 3;
+  string subscribe_token = 4;
+}
+
+message SubscriptionNodeRequest {
+  int64 user_id = 1;
+  repeated int64 topic_id = 2;
+}
+
+message SubscriptionNodeResponse {
+  string subscribe_token = 1;
+  NodeInfo node = 2;
+}
+
+message MessageEvent {
+  int64 sequence_number = 1;
+  OpType op = 2;
+  Message message = 3;
+  google.protobuf.Timestamp event_at = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Control plane
+////////////////////////////////////////////////////////////////////////////////
+
+service ControlPlane {
+  rpc GetClusterState(google.protobuf.Empty) returns (GetClusterStateResponse);
+}
+
+message GetClusterStateResponse {
+  NodeInfo head = 1;
+  NodeInfo tail = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Internal chain replication protocol
+////////////////////////////////////////////////////////////////////////////////
+
+service ChainReplication {
+  // Forward updates from predecessor to successor
+  rpc ForwardUpdate(UpdateRequest) returns (google.protobuf.Empty);
+  
+  // Acknowledge completion of update to predecessor
+  rpc AckUpdate(AckRequest) returns (google.protobuf.Empty);
+  
+  // Sync state during recovery
+  rpc SyncState(google.protobuf.Empty) returns (StateSnapshot);
+  
+  // Heartbeat for failure detection
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  
+  // Notify node of topology change
+  rpc UpdateTopology(TopologyUpdate) returns (google.protobuf.Empty);
+}
+
+message UpdateRequest {
+  int64 sequence_number = 1;
+  OpType op_type = 2;
+  oneof operation {
+    CreateUserRequest create_user = 3;
+    CreateTopicRequest create_topic = 4;
+    PostMessageRequest post_message = 5;
+    LikeMessageRequest like_message = 6;
+  }
+}
+
+message AckRequest {
+  int64 sequence_number = 1;
+}
+
+message StateSnapshot {
+  map<int64, User> users = 1;
+  map<int64, Topic> topics = 2;
+  map<int64, MessageList> messages = 3; // key: topic_id
+  int64 last_user_id = 4;
+  int64 last_topic_id = 5;
+  map<int64, int64> last_message_id = 6; // key: topic_id, value: last_msg_id
+  int64 sequence_number = 7;
+}
+
+message MessageList {
+  repeated Message messages = 1;
+}
+
+message HeartbeatRequest {
+  string node_id = 1;
+  int64 timestamp = 2;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+}
+
+message TopologyUpdate {
+  string node_id = 1;
+  NodeInfo predecessor = 2;
+  NodeInfo successor = 3;
+  bool is_head = 4;
+  bool is_tail = 5;
+  repeated int64 pending_acks = 6; // sequence numbers to re-send
+}
