@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package razpravljalnica;
+
+option go_package = "/razpravljalnica";
+
+import "proto/razpravljalnica.proto";
+import "google/protobuf/empty.proto";
+
+// Service za komunikacijo med vozlišči v verigi
+service ReplicationService {
+    // Repliciraj novo uporabnika
+    rpc ReplicateUser(ReplicateUserRequest) returns (google.protobuf.Empty);
+    
+    // Repliciraj novo temo
+    rpc ReplicateTopic(ReplicateTopicRequest) returns (google.protobuf.Empty);
+    
+    // Repliciraj novo sporočilo
+    rpc ReplicateMessage(ReplicateMessageRequest) returns (google.protobuf.Empty);
+    
+    // Repliciraj like
+    rpc ReplicateLike(ReplicateLikeRequest) returns (google.protobuf.Empty);
+    
+    // Posodobi naslednika v verigi
+    rpc UpdateSuccessor(UpdateSuccessorRequest) returns (google.protobuf.Empty);
+    
+    // Posodobi predhodnika v verigi
+    rpc UpdatePredecessor(UpdatePredecessorRequest) returns (google.protobuf.Empty);
+    
+    // Health check / ping
+    rpc Ping(google.protobuf.Empty) returns (PingResponse);
+    
+    // Pridobi trenutno stanje (za sinhronizacijo novega vozlišča)
+    rpc GetFullState(google.protobuf.Empty) returns (FullStateResponse);
+    
+    // Sinhroniziraj stanje (receiver aplicira celotno stanje)
+    rpc SyncState(FullStateResponse) returns (google.protobuf.Empty);
+}
+
+// Service za upravljanje vozlišč (control plane ↔ nodes)
+service NodeManagement {
+    // Registriraj vozlišče v kontrolni ravnini
+    rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+    
+    // Heartbeat od vozlišča
+    rpc Heartbeat(HeartbeatRequest) returns (google.protobuf.Empty);
+    
+    // Pridobi informacije o verigi
+    rpc GetChainInfo(google.protobuf.Empty) returns (ChainInfoResponse);
+}
+
+message ReplicateUserRequest {
+    User user = 1;
+}
+
+message ReplicateTopicRequest {
+    Topic topic = 1;
+}
+
+message ReplicateMessageRequest {
+    Message message = 1;
+}
+
+message ReplicateLikeRequest {
+    int64 message_id = 1;
+    int64 user_id = 2;
+    int32 new_like_count = 3;
+}
+
+message UpdateSuccessorRequest {
+    NodeInfo successor = 1;
+}
+
+message UpdatePredecessorRequest {
+    NodeInfo predecessor = 1;
+}
+
+message PingResponse {
+    string node_id = 1;
+    string status = 2;
+}
+
+message FullStateResponse {
+    repeated User users = 1;
+    repeated Topic topics = 2;
+    repeated Message messages = 3;
+}
+
+message RegisterNodeRequest {
+    NodeInfo node = 1;
+}
+
+message RegisterNodeResponse {
+    bool success = 1;
+    string message = 2;
+    ChainInfoResponse chain_info = 3;
+}
+
+message HeartbeatRequest {
+    string node_id = 1;
+}
+
+message ChainInfoResponse {
+    NodeInfo head = 1;
+    NodeInfo tail = 2;
+    repeated NodeInfo all_nodes = 3;
+    map<string, string> node_successors = 4; // node_id -> successor_node_id
+}
