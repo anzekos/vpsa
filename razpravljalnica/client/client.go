@@ -149,6 +149,16 @@ func (c *Client) GetMessages(topicID, fromMessageID int64, limit int32) ([]*pb.M
 	return resp.Messages, nil
 }
 
+// GetSubscriptionNode pridobi node za subscription
+func (c *Client) GetSubscriptionNode(ctx context.Context, req *pb.SubscriptionNodeRequest) (*pb.SubscriptionNodeResponse, error) {
+	return c.client.GetSubscriptionNode(ctx, req)
+}
+
+// SubscribeToTopic naroči se na temo
+func (c *Client) SubscribeToTopic(ctx context.Context, req *pb.SubscribeTopicRequest) (pb.MessageBoard_SubscribeTopicClient, error) {
+	return c.client.SubscribeTopic(ctx, req)
+}
+
 // SubscribeTopic naroči na teme (blocking)
 func (c *Client) SubscribeTopic(userID int64, topicIDs []int64, fromMessageID int64) error {
 	// Najprej pridobi subscription node
